@@ -35,6 +35,34 @@
 #include "hw/boards.h"
 #include "migration/vmstate.h"
 
+#include <fcntl.h>
+#include <stdio.h>
+#include <errno.h>
+#include <time.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sched.h>
+#include <signal.h>
+#include <math.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <sys/ioctl.h>
+#include <linux/page_coloring.h>
+
+#define __NR_set_color 441
+#define PPOOL_PATH "/proc/color_ppool"
+
+#define BUG_ON(cond)											\
+	do {												\
+		if (cond) {										\
+			fprintf(stdout, "BUG_ON: %s (L%d) %s\n", __FILE__, __LINE__, __FUNCTION__);	\
+			raise(SIGABRT);									\
+		}											\
+	} while (0)
+
+
 //#define DEBUG_UNASSIGNED
 
 static unsigned memory_region_transaction_depth;
@@ -1509,6 +1537,19 @@ void memory_region_init_ram_nomigrate(MemoryRegion *mr,
     memory_region_init_ram_shared_nomigrate(mr, owner, name, size, false, errp);
 }
 
+static void *qemu_ram_ptr_length(RAMBlock *ram_block, ram_addr_t addr,
+                                 hwaddr *size, bool lock)
+{
+    RAMBlock *block = ram_block;
+    if (*size == 0) {
+        return NULL;
+    }
+
+    *size = MIN(*size, block->max_length - addr);
+
+    return ramblock_ptr(block, addr);
+}
+
 void memory_region_init_ram_shared_nomigrate(MemoryRegion *mr,
                                              Object *owner,
                                              const char *name,
@@ -1517,11 +1558,15 @@ void memory_region_init_ram_shared_nomigrate(MemoryRegion *mr,
                                              Error **errp)
 {
     Error *err = NULL;
+    uint8_t *ptr;
+    hwaddr l;
     memory_region_init(mr, owner, name, size);
     mr->ram = true;
     mr->terminates = true;
     mr->destructor = memory_region_destructor_ram;
     mr->ram_block = qemu_ram_alloc(size, share, mr, &err);
+    ptr = qemu_ram_ptr_length(mr->ram_block, 0, &l, false);
+    memset(ptr, 0, l);
     mr->dirty_log_mask = tcg_enabled() ? (1 << DIRTY_MEMORY_CODE) : 0;
     if (err) {
         mr->size = int128_zero();
