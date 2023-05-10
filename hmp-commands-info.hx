@@ -872,6 +872,20 @@ Dump all the ramblocks of the system.
 ETEXI
 
     {
+        .name       = "touchmem",
+        .args_type  = "",
+        .params     = "",
+        .help       = "Touch memory",
+        .cmd        = hmp_info_touchmem,
+    },
+
+STEXI
+@item info touchmem
+@findex info touchmem
+Touch memory
+ETEXI
+
+    {
         .name       = "hotpluggable-cpus",
         .args_type  = "",
         .params     = "",

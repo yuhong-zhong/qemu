@@ -2905,6 +2905,11 @@ void hmp_info_ramblock(Monitor *mon, const QDict *qdict)
     ram_block_dump(mon);
 }
 
+void hmp_info_touchmem(Monitor *mon, const QDict *qdict)
+{
+    touchmem(mon);
+}
+
 void hmp_info_vm_generation_id(Monitor *mon, const QDict *qdict)
 {
     Error *err = NULL;

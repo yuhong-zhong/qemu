@@ -74,6 +74,20 @@
 
 #include "monitor/monitor.h"
 
+#include <sys/mman.h>
+
+#define BUG_ON(cond)                                                                    \
+    do {                                                                                \
+        if (cond) {                                                                     \
+            fprintf(stdout, "BUG_ON: %s (L%d) %s\n", __FILE__, __LINE__, __FUNCTION__); \
+            raise(SIGABRT);                                                             \
+        }                                                                               \
+    } while (0)
+
+#define MADV_NO_PPOOL  22
+#define MADV_PPOOL_0   23
+#define MADV_PPOOL_1   24
+
 //#define DEBUG_SUBPAGE
 
 #if !defined(CONFIG_USER_ONLY)
@@ -1620,6 +1634,21 @@ void ram_block_dump(Monitor *mon)
     }
 }
 
+void touchmem(Monitor *mon)
+{
+    RAMBlock *block;
+
+    RCU_READ_LOCK_GUARD();
+    RAMBLOCK_FOREACH(block) {
+        volatile uint64_t value = 0;
+        volatile uint64_t *buffer = (volatile uint64_t *) block->host;
+        for (uint64_t i = 0; i < block->max_length / sizeof(uint64_t); ++i) {
+            value += buffer[i];
+        }
+        break;
+    }
+}
+
 #ifdef __linux__
 /*
  * FIXME TOCTTOU: this iterates over memory backends' mem-path, which
@@ -2228,7 +2257,8 @@ static void ram_block_add(RAMBlock *new_block, Error **errp, bool shared)
                 qemu_mutex_unlock_ramlist();
                 return;
             }
-            memory_try_enable_merging(new_block->host, new_block->max_length);
+            if (old_ram_size != 0)
+                memory_try_enable_merging(new_block->host, new_block->max_length);
         }
     }
 
@@ -2267,7 +2297,18 @@ static void ram_block_add(RAMBlock *new_block, Error **errp, bool shared)
 
     if (new_block->host) {
         qemu_ram_setup_dump(new_block->host, new_block->max_length);
-        qemu_madvise(new_block->host, new_block->max_length, QEMU_MADV_HUGEPAGE);
+        if (old_ram_size == 0) {
+            // Disable THP for now
+            // qemu_madvise(new_block->host, new_block->max_length, QEMU_MADV_HUGEPAGE);
+
+            int ret = madvise(new_block->host, new_block->max_length, MADV_PPOOL_0);
+            BUG_ON(ret != 0);
+            memset(new_block->host, 0, new_block->max_length);
+            fprintf(stderr, "new_block->host=%ld, new_block->used_length=%ld, new_block->max_length=%ld\n",
+                    (uint64_t) new_block->host, new_block->used_length, new_block->max_length);
+        } else {
+            qemu_madvise(new_block->host, new_block->max_length, QEMU_MADV_HUGEPAGE);
+        }
         /* MADV_DONTFORK is also needed by KVM in absence of synchronous MMU */
         qemu_madvise(new_block->host, new_block->max_length, QEMU_MADV_DONTFORK);
         ram_block_notify_add(new_block->host, new_block->max_length);
