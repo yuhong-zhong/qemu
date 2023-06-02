@@ -84,9 +84,9 @@
         }                                                                               \
     } while (0)
 
-#define MADV_NO_PPOOL  24
-#define MADV_PPOOL_0   25
-#define MADV_PPOOL_1   26
+#define MADV_NO_PPOOL  40
+#define MADV_PPOOL_0   41
+// #define MADV_PPOOL_1   42
 
 //#define DEBUG_SUBPAGE
 
