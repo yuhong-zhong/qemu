@@ -2301,8 +2301,8 @@ static void ram_block_add(RAMBlock *new_block, Error **errp, bool shared)
             // Disable THP for now
             // qemu_madvise(new_block->host, new_block->max_length, QEMU_MADV_HUGEPAGE);
 
-            int ret = madvise(new_block->host, new_block->max_length, MADV_PPOOL_0);
-            BUG_ON(ret != 0);
+            // int ret = madvise(new_block->host, new_block->max_length, MADV_PPOOL_0);
+            // BUG_ON(ret != 0);
             memset(new_block->host, 0, new_block->max_length);
             fprintf(stderr, "new_block->host=%ld, new_block->used_length=%ld, new_block->max_length=%ld\n",
                     (uint64_t) new_block->host, new_block->used_length, new_block->max_length);
