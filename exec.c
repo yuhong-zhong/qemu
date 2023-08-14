@@ -75,6 +75,7 @@
 #include "monitor/monitor.h"
 
 #include <sys/mman.h>
+#include <linux/page_coloring.h>
 
 #define BUG_ON(cond)                                                                    \
     do {                                                                                \
@@ -2298,10 +2299,12 @@ static void ram_block_add(RAMBlock *new_block, Error **errp, bool shared)
     if (new_block->host) {
         qemu_ram_setup_dump(new_block->host, new_block->max_length);
         if (old_ram_size == 0) {
-            // Disable THP for now
-            // qemu_madvise(new_block->host, new_block->max_length, QEMU_MADV_HUGEPAGE);
-
-            int ret = madvise(new_block->host, new_block->max_length, MADV_PPOOL_0);
+            int ret;
+#ifdef COLOR_THP
+            ret = qemu_madvise(new_block->host, new_block->max_length, QEMU_MADV_HUGEPAGE);
+            BUG_ON(ret != 0);
+#endif
+            ret = madvise(new_block->host, new_block->max_length, MADV_PPOOL_0);
             BUG_ON(ret != 0);
             memset(new_block->host, 0, new_block->max_length);
             fprintf(stderr, "new_block->host=%ld, new_block->used_length=%ld, new_block->max_length=%ld\n",
