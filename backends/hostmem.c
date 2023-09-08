@@ -391,7 +391,7 @@ host_memory_backend_memory_complete(UserCreatable *uc, Error **errp)
          * This is necessary to guarantee memory is allocated with
          * specified NUMA policy in place.
          */
-        if (backend->prealloc) {
+        if (true) {
             os_mem_prealloc(memory_region_get_fd(&backend->mr), ptr, sz,
                             backend->prealloc_threads, &local_err);
             if (local_err) {
