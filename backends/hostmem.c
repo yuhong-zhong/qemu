@@ -398,14 +398,17 @@ host_memory_backend_memory_complete(UserCreatable *uc, Error **errp)
          * This is necessary to guarantee memory is allocated with
          * specified NUMA policy in place.
          */
-        if (backend->prealloc) {
-            qemu_prealloc_mem(memory_region_get_fd(&backend->mr), ptr, sz,
-                              backend->prealloc_threads,
-                              backend->prealloc_context, &local_err);
-            if (local_err) {
-                goto out;
-            }
-        }
+        // if (backend->prealloc) {
+        //     qemu_prealloc_mem(memory_region_get_fd(&backend->mr), ptr, sz,
+        //                       backend->prealloc_threads,
+        //                       backend->prealloc_context, &local_err);
+        //     if (local_err) {
+        //         goto out;
+        //     }
+        // }
+
+        // XXX: os_mem_prealloc does not work with MADV_PPOOL_0
+        memset(ptr, 0, sz);
     }
 out:
     error_propagate(errp, local_err);

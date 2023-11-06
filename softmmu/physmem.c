@@ -80,6 +80,24 @@
 #include <daxctl/libdaxctl.h>
 #endif
 
+#include <sys/mman.h>
+#include <linux/page_coloring.h>
+
+#define BUG_ON(cond)                                                                    \
+    do {                                                                                \
+        if (cond) {                                                                     \
+            fprintf(stdout, "BUG_ON: %s (L%d) %s\n", __FILE__, __LINE__, __FUNCTION__); \
+            raise(SIGABRT);                                                             \
+        }                                                                               \
+    } while (0)
+
+#define MADV_NO_PPOOL  40
+#define MADV_PPOOL_0   41
+// #define MADV_PPOOL_1   42
+
+#define COLOR_THP
+// #undef COLOR_THP
+
 //#define DEBUG_SUBPAGE
 
 /* ram_list is read under rcu_read_lock()/rcu_read_unlock().  Writes
@@ -1859,7 +1877,14 @@ static void ram_block_add(RAMBlock *new_block, Error **errp)
 
     if (new_block->host) {
         qemu_ram_setup_dump(new_block->host, new_block->max_length);
+#ifdef COLOR_THP
         qemu_madvise(new_block->host, new_block->max_length, QEMU_MADV_HUGEPAGE);
+#endif
+        if (old_ram_size == 0) {
+            int ret;
+            ret = madvise(new_block->host, new_block->max_length, MADV_PPOOL_0);
+            BUG_ON(ret != 0);
+        }
         /*
          * MADV_DONTFORK is also needed by KVM in absence of synchronous MMU
          * Configure it unless the machine is a qtest server, in which case
