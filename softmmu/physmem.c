@@ -78,7 +78,8 @@
 #endif
 
 #include <sys/mman.h>
-#include <linux/page_coloring.h>
+#include <numaif.h>
+#include <unistd.h>
 
 #define BUG_ON(cond)                                                                    \
     do {                                                                                \
@@ -88,12 +89,11 @@
         }                                                                               \
     } while (0)
 
-#define MADV_NO_PPOOL  40
-#define MADV_PPOOL_0   41
-// #define MADV_PPOOL_1   42
 
 #define COLOR_THP
 // #undef COLOR_THP
+
+#define LOCAL_MEM_RATIO 0.5
 
 //#define DEBUG_SUBPAGE
 
@@ -2053,9 +2053,20 @@ static void ram_block_add(RAMBlock *new_block, Error **errp)
         qemu_madvise(new_block->host, new_block->max_length, QEMU_MADV_HUGEPAGE);
 #endif
         if (old_ram_size == 0) {
-            int ret;
-            ret = madvise(new_block->host, new_block->max_length, MADV_PPOOL_0);
-            BUG_ON(ret != 0);
+            BUG_ON((unsigned long) new_block->host % (1UL << 21UL) != 0);
+            unsigned long local_mem_size = ((unsigned long) (new_block->max_length * LOCAL_MEM_RATIO) >> 21UL) << 21UL;
+            BUG_ON(local_mem_size > new_block->max_length);
+            BUG_ON((local_mem_size % (1UL << 21UL)) != 0);
+            unsigned long remote_mem_size = new_block->max_length - local_mem_size;
+            BUG_ON((remote_mem_size % (1UL << 21UL)) != 0);
+
+            unsigned long nodemask = 1;
+            long mbind_ret = mbind(new_block->host, local_mem_size, MPOL_BIND, &nodemask, 4, MPOL_MF_STRICT | MPOL_MF_MOVE);
+            BUG_ON(mbind_ret != 0);
+
+            nodemask = 2;
+            mbind_ret = mbind(new_block->host + local_mem_size, remote_mem_size, MPOL_BIND, &nodemask, 4, MPOL_MF_STRICT | MPOL_MF_MOVE);
+            BUG_ON(mbind_ret != 0);
         }
 
         /*
