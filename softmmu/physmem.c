@@ -2060,13 +2060,18 @@ static void ram_block_add(RAMBlock *new_block, Error **errp)
             unsigned long remote_mem_size = new_block->max_length - local_mem_size;
             BUG_ON((remote_mem_size % (1UL << 21UL)) != 0);
 
-            unsigned long nodemask = 1;
-            long mbind_ret = mbind(new_block->host, local_mem_size, MPOL_BIND, &nodemask, 4, MPOL_MF_STRICT | MPOL_MF_MOVE);
-            BUG_ON(mbind_ret != 0);
-
-            nodemask = 2;
-            mbind_ret = mbind(new_block->host + local_mem_size, remote_mem_size, MPOL_BIND, &nodemask, 4, MPOL_MF_STRICT | MPOL_MF_MOVE);
-            BUG_ON(mbind_ret != 0);
+            unsigned long nodemask;
+            long mbind_ret;
+            if (local_mem_size > 0) {
+                nodemask = 1;
+                mbind_ret = mbind(new_block->host, local_mem_size, MPOL_BIND, &nodemask, 4, MPOL_MF_STRICT | MPOL_MF_MOVE);
+                BUG_ON(mbind_ret != 0);
+            }
+            if (remote_mem_size > 0) {
+                nodemask = 2;
+                mbind_ret = mbind(new_block->host + local_mem_size, remote_mem_size, MPOL_BIND, &nodemask, 4, MPOL_MF_STRICT | MPOL_MF_MOVE);
+                BUG_ON(mbind_ret != 0);
+            }
         }
 
         /*
